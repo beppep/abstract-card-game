@@ -1,7 +1,6 @@
 import './style.css';
 import { ruleset } from './cards';
 import { Game } from './engine/game';
-import { cardRefs, type Refs } from './engine/refs';
 import { describeCard, describeStep, zoneLabel } from './engine/text';
 import { RULES, type CardId, type Frame, type Prompt } from './engine/types';
 
@@ -74,33 +73,24 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<string, 
 function render(): void {
   const prompt = game.prompt();
   const lit = new Set<CardId>(prompt.type === 'over' ? [] : prompt.options);
-  const refs = visibleRefs();
   const log = logPanel();
   app.replaceChildren(
-    header(refs),
+    header(),
     promptBar(prompt),
-    h('main', { class: 'layout' }, board(refs, lit), h('aside', { class: 'side' }, stackPanel(), log)),
+    h('main', { class: 'layout' }, board(lit), h('aside', { class: 'side' }, stackPanel(), log)),
   );
   const entries = log.querySelector('ol')!;
   entries.scrollTop = entries.scrollHeight;
 }
 
-function visibleRefs(): Refs {
-  const refs: Refs = { zones: new Set(), counters: new Set() };
-  for (const inst of Object.values(game.state.cards)) {
-    if (inst.zone !== 'pool' && !game.isFaceDown(inst.zone)) cardRefs(game.def(inst.id), refs);
-  }
-  return refs;
-}
-
-function header(refs: Refs): HTMLElement {
+function header(): HTMLElement {
   const s = game.state;
   const select = h('select', { 'aria-label': 'Character', onchange: () => newRun(select.value, randomSeed()) },
     ...ruleset.characters.map((c) => h('option', { value: c.id, selected: c.id === s.character }, c.name)));
   const seedInput = h('input', { type: 'number', value: s.seed, 'aria-label': 'Seed', class: 'seed' });
   const character = ruleset.characters.find((c) => c.id === s.character)!;
 
-  const counters = remember(counterOrder, [...s.seenCounters, ...refs.counters]);
+  const counters = remember(counterOrder, Object.keys(s.counters)).filter((c) => game.counter(c) > 0);
   return h('header', { class: 'top' },
     h('div', { class: 'brand' },
       h('h1', {}, 'Abstract'),
@@ -113,7 +103,7 @@ function header(refs: Refs): HTMLElement {
       h('button', { class: 'primary', onclick: () => newRun(s.character, randomSeed()) }, 'New run')),
     h('div', { class: 'counters' },
       h('span', { class: 'counter turn' }, h('b', {}, String(s.turn)), ' turn'),
-      ...counters.map((c) => h('span', { class: `counter${game.counter(c) ? '' : ' zero'}` }, h('b', {}, String(game.counter(c))), ` ${c}`)),
+      ...counters.map((c) => h('span', { class: 'counter' }, h('b', {}, String(game.counter(c))), ` ${c}`)),
       h('span', { class: 'counter pool' }, h('b', {}, '∞'), ' pool')),
   );
 }
@@ -138,8 +128,9 @@ function promptBar(p: Prompt): HTMLElement {
   return h('div', { class: `prompt prompt-${p.type}${p.type === 'over' ? ` ${p.reason}` : ''}` }, h('span', {}, text), action);
 }
 
-function board(refs: Refs, lit: Set<CardId>): HTMLElement {
-  const order = remember(zoneOrder, [RULES, ...game.state.seenZones, ...refs.zones]);
+function board(lit: Set<CardId>): HTMLElement {
+  // Only zones that hold cards exist. Rules is always shown: it is where you act.
+  const order = remember(zoneOrder, [RULES, ...Object.keys(game.state.zones)]).filter((z) => z === RULES || game.zone(z).length);
   return h('section', { class: 'board' }, ...order.map((z) => zonePanel(z, lit)));
 }
 
@@ -150,8 +141,7 @@ function zonePanel(zone: string, lit: Set<CardId>): HTMLElement {
   let body: HTMLElement;
   if (faceDown) {
     const anyLit = ids.some((id) => lit.has(id));
-    body = h('div', { class: 'pile' + (ids.length ? '' : ' empty') + (anyLit ? ' lit' : '') },
-      ids.length ? h('div', { class: 'back' }, h('span', {}, String(ids.length))) : h('span', { class: 'none' }, 'empty'));
+    body = h('div', { class: 'pile' + (anyLit ? ' lit' : '') }, h('div', { class: 'back' }, h('span', {}, String(ids.length))));
   } else {
     body = h('div', { class: 'cards' }, ...(ids.length ? ids.map((id) => cardEl(id, lit.has(id))) : [h('span', { class: 'none' }, 'empty')]));
   }

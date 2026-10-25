@@ -208,6 +208,17 @@ describe('counters, zones and winning', () => {
     expect(g.counter('drops')).toBe(1); // losing from 0 changes nothing, so no trigger
   });
 
+  it('zones exist only while they hold cards, counters only while above zero', () => {
+    const swap = card('swap', [{ do: 'moveEach', from: 'hand', to: 'void' }, { do: 'gain', counter: 'x', amount: 1 }, { do: 'lose', counter: 'x', amount: 1 }]);
+    const g = setup([swap], [card('idle', [])]);
+    expect(Object.keys(g.state.zones)).toEqual(['rules']);
+    expect(g.state.counters).toEqual({});
+    g.spawn('idle', 'hand');
+    press(g, 'swap');
+    expect(Object.keys(g.state.zones).sort()).toEqual(['rules', 'void']);
+    expect(g.state.counters).toEqual({});
+  });
+
   it('recycles the discard into the draw pile, oldest first, then shuffles', () => {
     const recycle = card('recycle', [{ do: 'moveEach', from: 'discard', to: 'draw' }, { do: 'shuffle', zone: 'draw' }]);
     const idle = card('idle', []);

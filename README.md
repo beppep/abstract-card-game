@@ -2,12 +2,12 @@
 
 A very abstract roguelike card game. There are no built-in rules: everything is cards.
 
-- **Zones** hold cards. They all work the same, and a zone exists as soon as any card mentions it.
+- **Zones** hold cards. They all work the same. A zone is just a name on a card: it exists while it holds cards.
   `rules` and `pool` are the only names the engine knows.
 - **Rules.** Each turn you press one card in Rules. That is the only thing a player does on their own.
 - **The pool** is infinite. Taking a card from it makes a brand-new random card.
 - **Piles** (like `draw`) are just zones shown face down.
-- **Counters** are named numbers that never go below zero. Mentioning one is enough for it to exist.
+- **Counters** are named numbers. A counter exists while it is above zero.
 - **Winning** is a card effect ("Win the game"), usually behind a condition.
 
 Play: https://beppep.github.io/abstract-card-game/

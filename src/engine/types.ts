@@ -5,7 +5,10 @@ export type ZoneName = string;
 export type CounterName = string;
 export type CardId = string;
 
-/** The two zones the engine itself knows about. Every other zone exists as soon as something mentions it. */
+/**
+ * The two zones the engine itself knows about. Every other zone is just a name on a card:
+ * it exists while it holds cards. Counters likewise exist while they are above zero.
+ */
 export const RULES: ZoneName = 'rules';
 export const POOL: ZoneName = 'pool';
 
@@ -173,9 +176,6 @@ export interface GameState {
   /** Index 0 is the top / oldest card. */
   zones: Record<ZoneName, CardId[]>;
   counters: Record<CounterName, number>;
-  /** Zones and counters in the order they were first mentioned, for display. */
-  seenZones: ZoneName[];
-  seenCounters: CounterName[];
   stack: Frame[];
   /** Cards whose effects are currently resolving. They cannot be activated or trigger. */
   busy: Record<CardId, number>;

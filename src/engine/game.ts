@@ -38,12 +38,10 @@ export class Game {
       seed, rng: seed, character: characterId,
       nextId: 1, nextArrival: 1,
       cards: {}, zones: {}, counters: {},
-      seenZones: [], seenCounters: [],
       stack: [], busy: {},
       turn: 0, won: false, chainSteps: 0, log: [],
     };
     const game = new Game(rules, state);
-    game.seeZone(RULES);
     for (const id of character.rules) game.place(state.cards[game.create(id)], RULES, 'bottom');
     game.log(`${character.name} begins. Seed ${seed}.`);
     return game;
@@ -218,7 +216,6 @@ export class Game {
         f.vars[step.as ?? 'it'] = card;
         if (!card) { this.log(`${describeStep(step)} — nothing there.`, 'fizzle'); return true; }
         const inst = this.state.cards[card];
-        this.seeZone(step.to);
         this.pushEvent({ type: 'move', card, arrival: inst.arrival, from: inst.zone, to: step.to, at: step.at ?? 'bottom' });
         return true;
       }
@@ -231,7 +228,6 @@ export class Game {
         return true;
       }
       case 'activateEach': {
-        this.seeZone(step.zone);
         const options = this.snapshot(step.zone).filter((o) => !this.isBusy(o.card) && !(step.others && o.card === f.source));
         if (!options.length) { this.log(`${describeStep(step)} — nothing to activate.`, 'fizzle'); return true; }
         this.state.stack.push({
@@ -242,8 +238,6 @@ export class Game {
         return true;
       }
       case 'moveEach': {
-        this.seeZone(step.from);
-        this.seeZone(step.to);
         // Pushed in reverse so the oldest card moves first.
         for (const o of this.snapshot(step.from).reverse()) {
           this.pushEvent({ type: 'move', card: o.card, arrival: o.arrival, from: step.from, to: step.to, at: step.at ?? 'bottom' });
@@ -252,11 +246,9 @@ export class Game {
       }
       case 'gain':
       case 'lose':
-        this.seeCounter(step.counter);
         this.pushEvent({ type: 'counter', counter: step.counter, amount: step.do === 'gain' ? step.amount : -step.amount });
         return true;
       case 'shuffle':
-        this.seeZone(step.zone);
         shuffleInPlace(this.state, this.zone(step.zone));
         this.log(`${zoneLabel(step.zone)} is shuffled.`);
         return true;
@@ -284,7 +276,6 @@ export class Game {
       return id && s.cards[id] ? id : null;
     }
     if (src.zone === POOL) return forActivate ? null : this.create(this.poolDefs[randomInt(s, this.poolDefs.length)].id);
-    this.seeZone(src.zone);
     const list = this.zone(src.zone);
     switch (src.pick) {
       case 'top': return list[0] ?? null;
@@ -364,7 +355,8 @@ export class Game {
           this.log(`${ev.counter} stays at ${before}.`, 'fizzle');
           return;
         }
-        s.counters[ev.counter] = after;
+        // A counter only exists while it is above zero.
+        if (after > 0) s.counters[ev.counter] = after; else delete s.counters[ev.counter];
         ev.amount = after - before;
         this.log(`${ev.amount > 0 ? '+' : ''}${ev.amount} ${ev.counter} (now ${after}).`);
         f.phase = 'after';
@@ -396,7 +388,7 @@ export class Game {
   private queueTriggers(when: 'before' | 'after', ev: GameEvent): void {
     const pending: PendingTrigger[] = [];
     const eventCard = ev.type === 'counter' ? null : ev.card;
-    for (const zone of this.state.seenZones) {
+    for (const zone of Object.keys(this.state.zones)) {
       if (zone === POOL || this.isFaceDown(zone)) continue;
       for (const id of this.zone(zone)) {
         if (this.isBusy(id)) continue;
@@ -469,7 +461,6 @@ export class Game {
 
   private place(inst: CardInstance, zone: ZoneName, at: 'top' | 'bottom'): void {
     this.detach(inst);
-    this.seeZone(zone);
     const list = (this.state.zones[zone] ??= []);
     if (at === 'top') list.unshift(inst.id); else list.push(inst.id);
     inst.zone = zone;
@@ -486,14 +477,8 @@ export class Game {
     if (!list) return;
     const i = list.indexOf(inst.id);
     if (i >= 0) list.splice(i, 1);
-  }
-
-  private seeZone(zone: ZoneName): void {
-    if (zone !== POOL && !this.state.seenZones.includes(zone)) this.state.seenZones.push(zone);
-  }
-
-  private seeCounter(counter: string): void {
-    if (!this.state.seenCounters.includes(counter)) this.state.seenCounters.push(counter);
+    // A zone only exists while it holds cards.
+    if (!list.length) delete this.state.zones[inst.zone];
   }
 
   private abortChain(): void {
